@@ -8,10 +8,10 @@ For a animalShelter database with a collection named `dogs`
 use dbName
 ```
 
-# Show collection (table) /
+# Show all collections
 
 ```
-show collectionName
+show collections
 ```
 
 # Insert items in collection

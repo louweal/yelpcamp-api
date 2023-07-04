@@ -6,9 +6,11 @@ const cors = require("cors");
 const morgan = require("morgan");
 const ExpressError = require("./utils/ExpressError");
 const catchAsync = require("./utils/catchAsync");
-const { campgroundSchema } = require("./schemas.js");
+const { campgroundSchema, reviewSchema } = require("./schemas.js");
 
+// models
 const Campground = require("./models/campground");
+const Review = require("./models/review");
 
 // choose whatever name,  port is default
 mongoose.connect("mongodb://localhost:27017/yelp-camp", {
@@ -41,6 +43,18 @@ const validateCampground = (req, res, next) => {
   }
 };
 
+const validateReview = (req, res, next) => {
+  const { error } = reviewSchema.validate(req.body);
+
+  if (error) {
+    console.log(error);
+    const msg = error.details.map((el) => el.message).join(",");
+    throw new ExpressError(400, msg);
+  } else {
+    next();
+  }
+};
+
 app.get(
   "/campgrounds",
   catchAsync(async (req, res) => {
@@ -52,7 +66,8 @@ app.get(
 app.get(
   "/campgrounds/:id",
   catchAsync(async (req, res) => {
-    const campground = await Campground.findById(req.params.id);
+    const campground = await Campground.findById(req.params.id).populate("reviews");
+    console.log(campground);
     res.json(campground);
   })
 );
@@ -90,6 +105,19 @@ app.delete(
   catchAsync(async (req, res) => {
     await Campground.findByIdAndDelete(req.params.id);
     res.send("SUCCESS");
+  })
+);
+
+app.post(
+  "/campgrounds/:id/reviews",
+  validateReview,
+  catchAsync(async (req, res) => {
+    const campground = await Campground.findById(req.params.id);
+    const review = new Review(req.body.review);
+    campground.reviews.push(review);
+    await review.save();
+    await campground.save();
+    res.json(campground);
   })
 );
 
