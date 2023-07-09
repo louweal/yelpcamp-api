@@ -1,16 +1,16 @@
 const express = require("express");
-// const path = require("path");
+const session = require("express-session");
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const morgan = require("morgan");
 const ExpressError = require("./utils/ExpressError");
-const catchAsync = require("./utils/catchAsync");
-const { campgroundSchema, reviewSchema } = require("./schemas.js");
-
-// models
-const Campground = require("./models/campground");
-const Review = require("./models/review");
+const userRoutes = require("./routes/users");
+const campgroundRoutes = require("./routes/campground");
+const reviewRoutes = require("./routes/reviews");
+const passport = require("passport");
+const LocalStrategy = require("passport-local");
+const User = require("./models/user");
 
 // choose whatever name,  port is default
 mongoose.connect("mongodb://localhost:27017/yelp-camp", {
@@ -31,95 +31,33 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-const validateCampground = (req, res, next) => {
-  const { error } = campgroundSchema.validate(req.body);
-
-  if (error) {
-    console.log(error);
-    const msg = error.details.map((el) => el.message).join(",");
-    throw new ExpressError(400, msg);
-  } else {
-    next();
-  }
+const sessionConfig = {
+  secret: "dfg4df6fh3y5dh797453gd54",
+  resave: false,
+  saveUninitialized: true, // only for dev
+  cookie: {
+    httpOnly: true, // security
+    expires: Date.now() + 604800000, // after one week (milliseconds)
+    maxAge: 604800000,
+  },
 };
+app.use(session(sessionConfig)); // inspect session info at: <api-url> | DevTools -> Application -> Storage -> Cookies
 
-const validateReview = (req, res, next) => {
-  const { error } = reviewSchema.validate(req.body);
+app.use(passport.initialize());
+app.use(passport.session()); // must be after app.use(session)
+passport.use(new LocalStrategy(User.authenticate()));
+passport.serializeUser(User.serializeUser()); // storing user in a session
+passport.deserializeUser(User.deserializeUser());
 
-  if (error) {
-    console.log(error);
-    const msg = error.details.map((el) => el.message).join(",");
-    throw new ExpressError(400, msg);
-  } else {
-    next();
-  }
-};
+app.use("/", userRoutes);
 
-app.get(
-  "/campgrounds",
-  catchAsync(async (req, res) => {
-    const campgrounds = await Campground.find({});
-    res.json(campgrounds);
-  })
-);
+// use the routes defined in routes/campgrounds
+// all routes start with /campgrounds
+app.use("/campgrounds", campgroundRoutes);
 
-app.get(
-  "/campgrounds/:id",
-  catchAsync(async (req, res) => {
-    const campground = await Campground.findById(req.params.id).populate("reviews");
-    console.log(campground);
-    res.json(campground);
-  })
-);
-
-app.post(
-  "/campgrounds",
-  validateCampground,
-  catchAsync(async (req, res) => {
-    const campground = new Campground(req.body.campground);
-    await campground.save();
-    res.json(campground);
-  })
-);
-
-app.get(
-  "/campgrounds/:id/edit",
-  catchAsync(async (req, res) => {
-    const campground = await Campground.findById(req.params.id);
-    res.json(campground);
-  })
-);
-
-app.put(
-  "/campgrounds/:id",
-  validateCampground,
-  catchAsync(async (req, res) => {
-    console.log(req.body);
-    await Campground.findByIdAndUpdate(req.params.id, { ...req.body.campground });
-    res.send("SUCCESS");
-  })
-);
-
-app.delete(
-  "/campgrounds/:id",
-  catchAsync(async (req, res) => {
-    await Campground.findByIdAndDelete(req.params.id);
-    res.send("SUCCESS");
-  })
-);
-
-app.post(
-  "/campgrounds/:id/reviews",
-  validateReview,
-  catchAsync(async (req, res) => {
-    const campground = await Campground.findById(req.params.id);
-    const review = new Review(req.body.review);
-    campground.reviews.push(review);
-    await review.save();
-    await campground.save();
-    res.json(campground);
-  })
-);
+// use the routes defined in routes/reviews
+// all routes start with /campgrounds/:id/reviews
+app.use("/campgrounds/:id/reviews", reviewRoutes);
 
 // app.use((req, res) => {
 //   res.status(404).send("NOT FOUND");
@@ -129,12 +67,11 @@ app.all("*", (req, res, next) => {
   next(new ExpressError(404, "Not found"));
 });
 
-// example: throw new ExpressError(403, "You are not an admin.")
-
 app.use((err, req, res, next) => {
   // only our ExpressError has a err.status
   const { statusCode = 500, message = "Something went wrong" } = err; // destructure with default value
-  res.status(statusCode).send(message);
+  console.log(err);
+  res.status(statusCode).json({ success: false, message });
 });
 
 app.listen(3001, () => {
