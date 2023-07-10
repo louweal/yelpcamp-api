@@ -27,7 +27,9 @@ const app = express();
 
 //app.use => runs code on every request (~= middleware)
 app.use(morgan("dev")); // logs request information in the console
-app.use(cors());
+// app.use(cors());
+app.use(cors({ credentials: true, origin: "http://localhost:3000" }));
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
