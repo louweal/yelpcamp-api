@@ -27,4 +27,13 @@ router.post("/login", passport.authenticate("local", { failureMessage: true }), 
   }
 });
 
+router.get("/logout", (req, res) => {
+  req.logout(function (err) {
+    if (err) {
+      return next(err);
+    }
+    res.json({ success: true, message: "Logged out" });
+  });
+});
+
 module.exports = router;
